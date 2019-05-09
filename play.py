@@ -9,13 +9,11 @@ parser = argparse.ArgumentParser(description='Q-Learning for Chrome Dino run.',
 
 parser.add_argument("qtable", type=str,
                     help="Path to Q-table.")
-parser.add_argument("-a", "--acceleration", action='store_true',
-                    help="Use game acceleration with score.")
 
 args = parser.parse_args()
 
 
-env = Game(disable_acceleration=(not args.acceleration))
+env = Game()
 
 try:
     q_table = np.load(args.qtable)

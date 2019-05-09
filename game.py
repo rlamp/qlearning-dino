@@ -8,14 +8,16 @@ from selenium.webdriver.common.keys import Keys
 
 
 class Game:
-    # scaled down to 20 pixels + jump state
-    observation_space_n = 2**21
+    # scaled down to 20 pixels + 4 bit score + jump state
+    # After score 1600 there is no change in speed
+    observation_space_n = 2**25
     # Do nothing, jump
     action_space_n = 2
 
-    jump_num = 2**20
+    # First state bit 1
+    jump_num = 2**24
 
-    def __init__(self, disable_acceleration: bool = True) -> None:
+    def __init__(self) -> None:
 
         chrome_options = webdriver.ChromeOptions()
         chrome_options.add_argument("--disable-infobars")
@@ -27,9 +29,6 @@ class Game:
 
         self._driver.get('chrome://dino/')
         time.sleep(1)
-
-        if disable_acceleration:
-            self._driver.execute_script("Runner.config.ACCELERATION=0")
 
         # start game, let animation play, and wait to crash
         self.jump()
@@ -98,11 +97,16 @@ class Game:
         # state = self._scale_down(state)
         state = self._detect_obstacles_scale_down(gray)
         state = state.tolist()
-        # Append additional info: is jumping
-        state.append(int(self.is_jumping()))
-
         # Convert binary list to in int
         state_num = int(''.join(str(int(x)) for x in state), 2)
+
+        # Append additional info: score
+        current_score_state = min(self.get_score() // 100, 15)
+        state_num = state_num << 4 | current_score_state
+
+        # Append additional info: is jumping
+        state_num = state_num << 1 | int(self.is_jumping())
+
         return state_num
 
     def take_action(self, action: int) -> tuple:

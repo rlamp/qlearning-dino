@@ -14,8 +14,8 @@ parser.add_argument("--iter", type=int, default=0,
                     help="Starting iteration number.")
 parser.add_argument("--qtable", type=str, default=None,
                     help="Path to existing Q-table.")
-parser.add_argument("--verbose", action='store_true',
-                    help="Print states and rewards.")
+parser.add_argument("--silent", dest='verbose', action='store_false',
+                    help="Do not print states and rewards.")
 
 args = parser.parse_args()
 
@@ -29,7 +29,8 @@ try:
         if args.iter:
             i_starting = args.iter + 1
     else:
-        q_table = np.zeros([env.observation_space_n, env.action_space_n])
+        q_table = np.zeros(
+            [env.observation_space_n, env.action_space_n], dtype=np.float16)
 
     # Hyperparameters
     alpha = 0.2
@@ -62,12 +63,13 @@ try:
 
             new_value = ((1 - alpha) * old_value + alpha *
                          (reward + gamma * next_max))
-            q_table[state, action] = new_value
+
+            q_table[state, action] = np.float16(new_value)
 
             state = next_state
 
         print(f"{datetime.now()} Episode: {i}")
-        if i % 200 == 0:
+        if i % 500 == 0:
             # old_file = f'q_table_{i-50}.npy'
             # if os.path.isfile(old_file):
             #     os.remove(old_file)
