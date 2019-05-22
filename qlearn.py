@@ -1,5 +1,6 @@
 import argparse
 import os
+import pickle
 import random
 import sys
 from datetime import datetime
@@ -7,7 +8,6 @@ from datetime import datetime
 import numpy as np
 
 from game import Game
-
 
 parser = argparse.ArgumentParser(description='Q-Learning for Chrome Dino run.',
                                  formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -24,13 +24,12 @@ args = parser.parse_args()
 try:
     i_starting = 1
     if args.qtable is not None:
-        q_table = np.load(args.qtable)
+        with open(args.qtable, 'rb') as f:
+            q_table = pickle.load(f)
         if args.iter:
             i_starting = args.iter + 1
     else:
-        q_table = np.zeros(
-            [Game.observation_space_n, Game.action_space_n], dtype=np.float16)
-
+        q_table = {}
     score_limit = args.score
 
     env = Game()
@@ -52,19 +51,30 @@ try:
                 action = 0
             elif (env.get_score() >= score_limit and
                   random.uniform(0, 1) < epsilon):
-                action = random.randint(0, 1)  # Explore action space
+                # Explore action space
+                action = random.randint(0, 1)
             else:
-                action = np.argmax(q_table[state])  # Exploit learned values
+                # Exploit learned values
+                action = np.argmax(q_table.get(state, [0, 0]))
 
             next_state, reward, game_over = env.take_action(action)
 
-            old_value = q_table[state, action]
-            next_max = np.max(q_table[next_state])
+            try:
+                old_value = q_table.get(state, [0, 0])[action]
+            except:
+                old_value = 0
+            next_max = np.max(q_table.get(next_state, [0, 0]))
 
             new_value = ((1 - alpha) * old_value + alpha *
                          (reward + gamma * next_max))
+            new_value = np.float16(new_value)
 
-            q_table[state, action] = np.float16(new_value)
+            try:
+                q_table[state][action] = new_value
+            except:
+                new_arr = np.array([0, 0], dtype=np.float16)
+                new_arr[action] = new_value
+                q_table[state] = new_arr
 
             state = next_state
 
@@ -77,12 +87,15 @@ try:
             score_limit += 100
 
         if i % 500 == 0:
-            np.save(f'q_table_{i}.npy', q_table)
+            sparse.save_npz(f'q_table_{i}.npz', q_table)
+            with open(f'q_table_{i}.pickle', 'wb') as f:
+                pickle.dump(q_table, f, protocol=pickle.HIGHEST_PROTOCOL)
 
     print("Training finished.")
 
 
 finally:
     # Always close driver
-    np.save(f'q_table_{i}_ctrlc.npy', q_table)
+    with open(f'q_table_{i}_ctrlc.pickle', 'wb') as f:
+        pickle.dump(q_table, f, protocol=pickle.HIGHEST_PROTOCOL)
     env.end()
