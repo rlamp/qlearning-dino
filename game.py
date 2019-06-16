@@ -9,7 +9,7 @@ from selenium.webdriver.common.keys import Keys
 
 class Game:
     # scaled down to 20 pixels + 4 bit score + jump state
-    # After score 1600 there is no change in speed
+    # After score 1700 there is no change in speed
     observation_space_n = 2**25
     # Do nothing, jump
     action_space_n = 2
@@ -17,7 +17,8 @@ class Game:
     # First state bit 1
     jump_num = 2**24
 
-    def __init__(self) -> None:
+    def __init__(self, score_offset: int = 0,
+                 no_acceleration: bool = False) -> None:
 
         chrome_options = webdriver.ChromeOptions()
         chrome_options.add_argument("--disable-infobars")
@@ -30,13 +31,51 @@ class Game:
         self._driver.get('chrome://dino/')
         time.sleep(1)
 
-        # start game, let animation play, and wait to crash
-        self.jump()
-        while not self.is_game_over():
-            time.sleep(0.5)
+        self.score_offset = score_offset
+        if self.score_offset != 0:
+            set_speed = self._score_offset_to_speed(self.score_offset)
+            self._driver.execute_script(f'Runner.config.SPEED={set_speed}')
 
-        # game_over_state = cv2.imread('game_over.png', cv2.IMREAD_GRAYSCALE)
-        # game_over_state = np.array(game_over_state, dtype=np.bool)
+        self.no_acceleration = no_acceleration
+        if self.no_acceleration:
+            self._driver.execute_script('Runner.config.ACCELERATION=0')
+
+    def start(self):
+        self.jump()
+
+    @staticmethod
+    def _score_offset_to_speed(score_offset: int) -> float:
+        """ Values were acquired experimentally.
+        """
+        if not 0 <= score_offset <= 1000:
+            raise ValueError(
+                f"score_offset must be between 0 and 1000: {score_offset}")
+        if score_offset % 100:
+            raise ValueError(
+                f"score_offset is not round number: {score_offset}")
+
+        if score_offset == 0:
+            return 6.0
+        elif score_offset == 100:
+            return 6.66
+        elif score_offset == 200:
+            return 7.2
+        elif score_offset == 300:
+            return 7.75
+        elif score_offset == 400:
+            return 8.2
+        elif score_offset == 500:
+            return 8.75
+        elif score_offset == 600:
+            return 9.17
+        elif score_offset == 700:
+            return 9.6
+        elif score_offset == 800:
+            return 10.0
+        elif score_offset == 900:
+            return 10.4
+        elif score_offset == 1000:
+            return 10.8
 
     @staticmethod
     def _scale_down(state: np.array, new_len: int = 20) -> np.array:
@@ -83,26 +122,20 @@ class Game:
         image = np.array(ImageGrab.grab(
             bbox=(bbox_x, bbox_y, bbox_x+bbox_width, bbox_y+bbox_height)))
 
-        # cv2.imshow('window', cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-        # if cv2.waitKey(25) & 0xFF == ord('q'):
-        #     cv2.destroyAllWindows()
-
         gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
         gray = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY)[1]
 
         if np.median(gray[0, :]) == 0:
             gray = np.invert(gray)
 
-        # state = self._detect_obstacles(gray)
-        # state = self._scale_down(state)
-        state = self._detect_obstacles_scale_down(gray)
-        state = state.tolist()
+        state = self._detect_obstacles_scale_down(gray).tolist()
         # Convert binary list to in int
         state_num = int(''.join(str(int(x)) for x in state), 2)
 
         # Append additional info: score
-        current_score_state = min(self.get_score() // 100, 15)
-        state_num = state_num << 4 | current_score_state
+        if not self.no_acceleration:
+            current_score_state = min(self.get_score() // 100, 15)
+            state_num = state_num << 4 | current_score_state
 
         # Append additional info: is jumping
         state_num = state_num << 1 | int(self.is_jumping())
@@ -135,15 +168,9 @@ class Game:
     def jump(self) -> None:
         self._driver.find_element_by_tag_name('body').send_keys(Keys.SPACE)
 
-    # def is_jumping(self, gray: np.array) -> bool:
-    #     pass
     def is_jumping(self) -> bool:
         return self._driver.execute_script("return Runner.instance_.tRex.jumping")
 
-    # def is_game_over(self, state: np.array) -> bool:
-    #     state = np.array(state, dtype=np.bool)
-    #     check_state = game_over_state * state
-    #     return np.all(check_state == game_over_state)
     def is_game_over(self) -> bool:
         return self._driver.execute_script('return Runner.instance_.crashed')
 
@@ -151,10 +178,9 @@ class Game:
         score_array = self._driver.execute_script(
             "return Runner.instance_.distanceMeter.digits")
         score = ''.join(score_array)
-        return int(score)
+        return int(score) + self.score_offset
 
     def reset(self) -> list:
-        # self._driver.find_element_by_tag_name('body').send_keys(Keys.ENTER)
         self._driver.execute_script('Runner.instance_.restart()')
         time.sleep(.5)
         return self.get_state()

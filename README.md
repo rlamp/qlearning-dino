@@ -1,0 +1,1 @@
+Playing Chrome Dino game using Q-Learning with screenshot pixels as input. A project for AI class.

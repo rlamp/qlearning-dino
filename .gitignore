@@ -4,3 +4,5 @@ tables*/
 *.exe
 *.js
 *.png
+*.log
+*.pickle

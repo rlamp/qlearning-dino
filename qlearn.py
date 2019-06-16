@@ -12,7 +12,11 @@ from game import Game
 parser = argparse.ArgumentParser(description='Q-Learning for Chrome Dino run.',
                                  formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
-parser.add_argument("--score", type=int, default=0,
+parser.add_argument("--no-acceleration", action='store_true',
+                    help="No acceleration of game.")
+parser.add_argument("--score-offset", type=int, default=0,
+                    help="Starting score offset.")
+parser.add_argument("--score-limit", type=int, default=0,
                     help="Starting score limit.")
 parser.add_argument("--iter", type=int, default=0,
                     help="Starting iteration number.")
@@ -30,9 +34,10 @@ try:
             i_starting = args.iter + 1
     else:
         q_table = {}
-    score_limit = args.score
+    score_limit = args.score_limit
 
-    env = Game()
+    env = Game(args.score_offset, no_acceleration=args.no_acceleration)
+    env.start()
 
     # Hyperparameters
     alpha = 0.2
@@ -87,7 +92,6 @@ try:
             score_limit += 100
 
         if i % 500 == 0:
-            sparse.save_npz(f'q_table_{i}.npz', q_table)
             with open(f'q_table_{i}.pickle', 'wb') as f:
                 pickle.dump(q_table, f, protocol=pickle.HIGHEST_PROTOCOL)
 

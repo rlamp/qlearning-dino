@@ -1,22 +1,26 @@
 import argparse
+import pickle
 
 import numpy as np
 
 from game import Game
 
-parser = argparse.ArgumentParser(description='Q-Learning for Chrome Dino run.',
+parser = argparse.ArgumentParser(description='Play Chrome Dino run.',
                                  formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
+parser.add_argument("--no-acceleration", action='store_true',
+                    help="No acceleration of game.")
 parser.add_argument("qtable", type=str,
                     help="Path to Q-table.")
 
 args = parser.parse_args()
 
-
-env = Game()
+with open(args.qtable, 'rb') as f:
+    q_table = pickle.load(f)
 
 try:
-    q_table = np.load(args.qtable)
+    env = Game(no_acceleration=args.no_acceleration)
+    env.start()
 
     while True:
         state = env.reset()
@@ -27,7 +31,8 @@ try:
             if state % 2 == 1:
                 action = 0
             else:
-                action = np.argmax(q_table[state])  # Exploit learned values
+                # Exploit learned values
+                action = np.argmax(q_table.get(state, [0, 0]))
 
             state, _, game_over = env.take_action(action)
 
